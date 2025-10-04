@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plataforma de Pre-triage</title>
+  <!-- Librerías -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    :root {
+      --azul: #1565c0;
+      --azul-oscuro: #0d47a1;
+      --gris-claro: #f4f4f9;
+      --verde: #c8e6c9;
+      --amarillo: #fff9c4;
+      --rojo: #ffcdd2;
+    }
+
+    body { font-family: Arial, sans-serif; background: var(--gris-claro); margin: 0; }
+    header { background: var(--azul-oscuro); color: #fff; padding: 16px; text-align: center; }
+    h1 { margin: 0; font-size: 22px; }
+    main { padding: 20px; max-width: 1300px; margin: auto; }
+    .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+    .hidden { display: none; }
+    label { font-weight: 600; margin-top: 8px; display: block; }
+    input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+    button { margin-top: 12px; padding: 10px 16px; border: 0; border-radius: 6px; background: var(--azul); color: #fff; cursor: pointer; }
+    button:hover { background: #0f59ad; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
+    th, td { border: 1px solid #eee; padding: 6px; text-align: center; }
+    th { background: #e3f2fd; }
+    td { white-space: pre-wrap; word-break: break-word; max-width: 280px; }
+    .volver { background: #9e9e9e; margin-left: 8px; }
+    .normal { background-color: var(--verde); }
+    .prioritaria { background-color: var(--amarillo); }
+    .inmediata { background-color: var(--rojo); }
+    .filtros { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: center; }
+    .filtros input, .filtros select { flex: 1; min-width: 150px; }
+    .export-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .export-buttons button { background: #43a047; }
+    .export-buttons button:hover { background: #2e7d32; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      table { font-size: 12px; }
+      th, td { padding: 4px; }
+      main { padding: 10px; }
+      h1 { font-size: 18px; }
+      .card { padding: 14px; }
+      .filtros { flex-direction: column; align-items: stretch; }
+      .export-buttons { justify-content: center; }
+    }
+  </style>
+</head>
+
+<body>
+  <header><h1>Plataforma de Pre-triage</h1></header>
+
+  <main>
+    <!-- LOGIN -->
+    <section class="card" id="loginBox">
+      <h2>Iniciar sesión</h2>
+      <label>Usuario</label>
+      <input type="text" id="usuario" placeholder="enfermero | doctor" />
+      <label>Contraseña</label>
+      <input type="password" id="password" placeholder="••••" />
+      <button onclick="login()">Entrar</button>
+      <p style="margin-top:8px;color:#666">Demo: <b>enfermero/1234</b> o <b>doctor/4321</b></p>
+    </section>
+
+    <!-- PANEL ENFERMERO -->
+    <section class="card hidden" id="panelEnfermero">
+      <h2>Formulario de Pre-triage</h2>
+      <label>Nombre</label><input id="f_nombre" type="text" />
+      <label>Edad</label><input id="f_edad" type="number" />
+      <label>Sexo</label><select id="f_sexo"><option>Masculino</option><option>Femenino</option></select>
+      <label>Peso (kg)</label><input id="f_peso" type="number" />
+      <label>Altura (cm)</label><input id="f_altura" type="number" />
+      <label>Pulso (BPM)</label><input id="f_pulso" type="number" />
+      <label>SpO₂ (%)</label><input id="f_spo2" type="number" />
+      <label>Temperatura (°C)</label><input id="f_temp" type="number" step="0.1" />
+      <label>Presión arterial</label><input id="f_presion" type="text" placeholder="120/80" />
+      <label>Enfermedades crónicas</label><textarea id="f_enfermedades"></textarea>
+      <label>Alergias</label><textarea id="f_alergias"></textarea>
+      <label>Cirugías</label><textarea id="f_cirugias"></textarea>
+      <label>Medicación permanente</label><textarea id="f_medicacion"></textarea>
+      <label>Síntomas</label><textarea id="f_sintomas"></textarea>
+      <label>Observaciones</label><textarea id="f_obs"></textarea>
+      <button onclick="enviar()">Guardar en Sheets</button>
+      <button class="volver" onclick="volverInicio()">Volver al inicio</button>
+      <p id="msg" style="color:green; margin-top:8px;"></p>
+    </section>
+
+    <!-- PANEL DOCTOR -->
+    <section class="card hidden" id="panelDoctor">
+      <h2>Dashboard Médico</h2>
+      <div class="filtros">
+        <input type="text" id="buscar" placeholder="Buscar por nombre o ID..." oninput="filtrarTabla()" />
+        <select id="filtroPrioridad" onchange="filtrarTabla()">
+          <option value="">Todas las prioridades</option>
+          <option value="Normal">Normal</option>
+          <option value="Prioritaria">Prioritaria</option>
+          <option value="Inmediata">Inmediata</option>
+        </select>
+        <button class="volver" onclick="volverInicio()">Volver al inicio</button>
+      </div>
+
+      <div class="export-buttons">
+        <button onclick="exportarExcel()">Exportar a Excel 📊</button>
+        <button onclick="exportarPDF()">Exportar a PDF 📄</button>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table id="tabla">
+          <thead>
+            <tr>
+              <th>FechaHora</th><th>PacienteID</th><th>Nombre</th><th>Edad</th><th>Sexo</th>
+              <th>Peso</th><th>Altura</th><th>Pulso</th><th>SpO₂</th><th>Temperatura</th>
+              <th>Presión</th><th>Enfermedades Crónicas</th><th>Alergias</th><th>Cirugías</th>
+              <th>Medicación Permanente</th><th>Resumen IA</th><th>Prioridad</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <canvas id="grafico" height="120"></canvas>
+    </section>
+  </main>
+
+  <script>
+    // CONFIGURACIÓN
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzfG7VkB7yibkDQkKTX09fTUQqq9tLRHt5AuvKaB4hpyS_f8QNWdL9kvnfjmXYdgO_B/exec";
+    const CSV_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ1HTh0yWcSfmD_1eOzruOCSAyLnFOEfLTNjrGnYjpkPcYzrgkkW3nn_DaOhXWXFJxguklN_USmcjyk/pub?gid=2138612542&single=true&output=csv";
+    const ANALISIS_CSV_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(CSV_BASE);
+
+    // LOGIN
+    function login() {
+      const u = usuario.value;
+      const p = password.value;
+      if (u === "enfermero" && p === "1234") {
+        loginBox.classList.add("hidden");
+        panelEnfermero.classList.remove("hidden");
+      } else if (u === "doctor" && p === "4321") {
+        loginBox.classList.add("hidden");
+        panelDoctor.classList.remove("hidden");
+        cargarDatos();
+      } else alert("Credenciales incorrectas");
+    }
+
+    function volverInicio() {
+      panelEnfermero.classList.add("hidden");
+      panelDoctor.classList.add("hidden");
+      loginBox.classList.remove("hidden");
+    }
+
+    async function enviar() {
+      const body = {
+        nombre: f_nombre.value, edad: f_edad.value, sexo: f_sexo.value,
+        peso: f_peso.value, altura: f_altura.value, pulso: f_pulso.value,
+        spo2: f_spo2.value, temperatura: f_temp.value, presion: f_presion.value,
+        enfermedades: f_enfermedades.value, alergias: f_alergias.value,
+        cirugias: f_cirugias.value, medicacion: f_medicacion.value,
+        sintomas: f_sintomas.value, observaciones: f_obs.value
+      };
+      try {
+        await fetch(WEB_APP_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        msg.textContent = "Datos enviados correctamente ✅";
+      } catch { msg.textContent = "Error al enviar ❌"; }
+    }
+
+    let todasFilas = [];
+    let chartRef = null;
+
+    async function cargarDatos() {
+      try {
+        const res = await fetch(ANALISIS_CSV_URL, { cache: "no-store" });
+        const txt = await res.text();
+        const parsed = Papa.parse(txt, { header: false });
+        todasFilas = parsed.data.filter(r => r.length > 1);
+        todasFilas.shift(); // quitar encabezado
+        mostrarTabla();
+      } catch (e) { console.error("Error al cargar CSV:", e); }
+      setTimeout(cargarDatos, 5000);
+    }
+
+    function mostrarTabla() {
+      const tabla = document.querySelector("#tabla tbody");
+      tabla.innerHTML = "";
+      let labels = [], pulsos = [];
+
+      const texto = buscar.value.toLowerCase();
+      const prioridadFiltro = filtroPrioridad.value.toLowerCase();
+
+      const filtradas = todasFilas.filter(r => {
+        const coincideTexto = r[1].toLowerCase().includes(texto) || r[2].toLowerCase().includes(texto);
+        const coincidePrioridad = !prioridadFiltro || (r[16] || "").toLowerCase().includes(prioridadFiltro);
+        return coincideTexto && coincidePrioridad;
+      });
+
+      filtradas.forEach(r => {
+        const prioridad = (r[16] || "").toLowerCase();
+        const clase = prioridad.includes("inmediata") ? "inmediata" :
+                      prioridad.includes("prioritaria") ? "prioritaria" : "normal";
+        tabla.innerHTML += ⁠ <tr class="${clase}">${r.map(c => `<td>${c}</td> ⁠).join("")}</tr>`;
+        if (!isNaN(r[7]) && r[7] > 0) { labels.push(r[2]); pulsos.push(Number(r[7])); }
+      });
+
+      const ctx = grafico.getContext("2d");
+      if (chartRef) chartRef.destroy();
+      chartRef = new Chart(ctx, {
+        type: "bar",
+        data: { labels, datasets: [{ label: "Pulso cardíaco", data: pulsos, backgroundColor:"#1565c0" }] },
+        options: { animation:false, responsive:true }
+      });
+    }
+
+    function filtrarTabla() { mostrarTabla(); }
+
+    // EXPORTAR EXCEL
+    function exportarExcel() {
+      const headers = Array.from(document.querySelectorAll("#tabla thead th")).map(th => th.textContent);
+      const data = Array.from(document.querySelectorAll("#tabla tbody tr")).map(tr => 
+        Array.from(tr.children).map(td => td.textContent));
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+      XLSX.utils.book_append_sheet(wb, ws, "Pre-triage");
+      XLSX.writeFile(wb, "Pre-triage.xlsx");
+    }
+
+    // EXPORTAR PDF
+    function exportarPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      doc.text("Reporte de Pre-triage", 40, 40);
+      let y = 70;
+      const filas = Array.from(document.querySelectorAll("#tabla tbody tr")).map(tr =>
+        Array.from(tr.children).map(td => td.textContent));
+      filas.slice(0, 20).forEach(row => { doc.text(row.join(" | "), 40, y); y += 16; });
+      doc.save("Pre-triage.pdf");
+    }
+  </script>
+</body>
+</html>
