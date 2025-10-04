@@ -44,7 +44,6 @@
     .export-buttons button { background: #43a047; }
     .export-buttons button:hover { background: #2e7d32; }
 
-    /* Responsive */
     @media (max-width: 768px) {
       table { font-size: 12px; }
       th, td { padding: 4px; }
@@ -74,7 +73,7 @@
 
     <!-- PANEL ENFERMERO -->
     <section class="card hidden" id="panelEnfermero">
-      <h2>Formulario de Pre-triage</h2>
+      <h2>Formulario de Pepe el Pollo</h2>
       <label>Nombre</label><input id="f_nombre" type="text" />
       <label>Edad</label><input id="f_edad" type="number" />
       <label>Sexo</label><select id="f_sexo"><option>Masculino</option><option>Femenino</option></select>
@@ -206,7 +205,7 @@
         const prioridad = (r[16] || "").toLowerCase();
         const clase = prioridad.includes("inmediata") ? "inmediata" :
                       prioridad.includes("prioritaria") ? "prioritaria" : "normal";
-        tabla.innerHTML += ⁠ <tr class="${clase}">${r.map(c => `<td>${c}</td> ⁠).join("")}</tr>`;
+        tabla.innerHTML += `<tr class="${clase}">${r.map(c => `<td>${c}</td>`).join("")}</tr>`;
         if (!isNaN(r[7]) && r[7] > 0) { labels.push(r[2]); pulsos.push(Number(r[7])); }
       });
 
