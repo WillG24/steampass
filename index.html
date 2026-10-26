@@ -107,12 +107,14 @@
         </select>
         <button class="volver" onclick="volverInicio()">Volver al inicio</button>
       </div>
-
+    
       <div class="export-buttons">
         <button onclick="exportarExcel()">Exportar a Excel 📊</button>
         <button onclick="exportarPDF()">Exportar a PDF 📄</button>
+        <!-- 🔹 Nuevo botón -->
+        <button style="background:#e53935" onclick="eliminarRegistro()">Eliminar registro ❌</button>
       </div>
-
+    
       <div style="overflow-x:auto;">
         <table id="tabla">
           <thead>
@@ -126,12 +128,59 @@
           <tbody></tbody>
         </table>
       </div>
-
+    
       <canvas id="grafico" height="120"></canvas>
     </section>
   </main>
 
   <script>
+    // ELIMINAR REGISTRO
+async function eliminarRegistro() {
+  if (!todasFilas || todasFilas.length === 0) {
+    alert("No hay registros cargados todavía.");
+    return;
+  }
+
+  // Buscar por nombre o ID
+  const criterio = prompt("Ingrese nombre o ID del paciente a eliminar:");
+  if (!criterio) return;
+
+  const coincidencias = todasFilas.filter(r =>
+    r[1].toLowerCase().includes(criterio.toLowerCase()) || // ID
+    r[2].toLowerCase().includes(criterio.toLowerCase())    // Nombre
+  );
+
+  if (coincidencias.length === 0) {
+    alert("No se encontró ningún paciente con ese criterio.");
+    return;
+  }
+
+  // Si hay más de uno, pedimos elegir
+  let elegido = coincidencias[0];
+  if (coincidencias.length > 1) {
+    let lista = coincidencias.map((r, i) => `${i+1}. ID:${r[1]} - ${r[2]}`).join("\n");
+    let opcion = prompt("Se encontraron varios pacientes:\n" + lista + "\n\nEscriba el número del paciente a eliminar:");
+    if (!opcion || isNaN(opcion) || opcion < 1 || opcion > coincidencias.length) return;
+    elegido = coincidencias[opcion-1];
+  }
+
+  // Confirmación
+  if (!confirm(`¿Está seguro de eliminar al paciente: ${elegido[2]} (ID:${elegido[1]})?`)) return;
+
+  try {
+    // Aquí deberías tener en tu Google Apps Script un método DELETE
+    await fetch(WEB_APP_URL + "?delete=" + encodeURIComponent(elegido[1]), {
+      method: "GET", // o POST si prefieres
+      mode: "no-cors"
+    });
+
+    alert("Registro eliminado ✅");
+    cargarDatos(); // recargar tabla
+  } catch (e) {
+    console.error("Error eliminando:", e);
+    alert("Error al eliminar ❌");
+  }
+}
     // CONFIGURACIÓN
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzfG7VkB7yibkDQkKTX09fTUQqq9tLRHt5AuvKaB4hpyS_f8QNWdL9kvnfjmXYdgO_B/exec";
     const CSV_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ1HTh0yWcSfmD_1eOzruOCSAyLnFOEfLTNjrGnYjpkPcYzrgkkW3nn_DaOhXWXFJxguklN_USmcjyk/pub?gid=2138612542&single=true&output=csv";
